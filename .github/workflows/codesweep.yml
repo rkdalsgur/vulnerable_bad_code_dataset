@@ -1,6 +1,7 @@
 name: 'HCL AppScan CodeSweep FullScan'
+
 on:
-  workflow_dispatch: # 수동 실행 가능하게 함
+  workflow_dispatch:
   push:
     branches: [main]
 
@@ -18,8 +19,32 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Upload SARIF
+      - name: Convert SARIF to CSV
+        run: |
+          pip install pandas openpyxl
+          python - <<'EOF'
+          import json, pandas as pd
+          with open("results.sarif.json","r",encoding="utf-8") as f:
+              data=json.load(f)
+          rows=[]
+          for run in data.get("runs",[]):
+              for result in run.get("results",[]):
+                  rule=result.get("ruleId","")
+                  msg=result.get("message",{}).get("text","")
+                  level=result.get("level","")
+                  locs=result.get("locations",[])
+                  if locs:
+                      for loc in locs:
+                          uri=loc.get("physicalLocation",{}).get("artifactLocation",{}).get("uri","")
+                          line=loc.get("physicalLocation",{}).get("region",{}).get("startLine","")
+                          rows.append({"file":uri,"line":line,"rule":rule,"level":level,"message":msg})
+          df=pd.DataFrame(rows)
+          df.to_csv("results.csv",index=False,encoding="utf-8-sig")
+          df.to_excel("results.xlsx",index=False)
+          EOF
+
+      - name: Upload Excel
         uses: actions/upload-artifact@v4
         with:
-          name: codesweep-results
-          path: results.sarif.json
+          name: codesweep-excel
+          path: results.xlsx
