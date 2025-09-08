@@ -1,9 +1,11 @@
-name: 'HCL AppScan CodeSweep with Excel Export'
+name: 'HCL AppScan CodeSweep with SARIF Export'
 
 on:
-  workflow_dispatch:
+  workflow_dispatch: # 수동 실행 가능
   push:
     branches: [main]
+  pull_request:
+    types: [opened, synchronize]
 
 jobs:
   scan:
@@ -19,41 +21,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # SARIF가 생성된다고 가정하고 변환 진행
-      - name: Convert SARIF to Excel
-        run: |
-          pip install pandas openpyxl
-          python - <<'EOF'
-          import json, pandas as pd, os
-          sarif_file = "results.sarif.json"
-          if not os.path.exists(sarif_file):
-              print("⚠️ SARIF 파일이 생성되지 않았습니다. CodeSweep이 결과를 내지 않았을 가능성이 있습니다.")
-              exit(0)
-          with open(sarif_file,"r",encoding="utf-8") as f:
-              data=json.load(f)
-          rows=[]
-          for run in data.get("runs",[]):
-              for result in run.get("results",[]):
-                  rule=result.get("ruleId","")
-                  msg=result.get("message",{}).get("text","")
-                  level=result.get("level","")
-                  locs=result.get("locations",[])
-                  if locs:
-                      for loc in locs:
-                          uri=loc.get("physicalLocation",{}).get("artifactLocation",{}).get("uri","")
-                          line=loc.get("physicalLocation",{}).get("region",{}).get("startLine","")
-                          rows.append({"file":uri,"line":line,"rule":rule,"level":level,"message":msg})
-          df=pd.DataFrame(rows)
-          if not df.empty:
-              df.to_excel("results.xlsx",index=False)
-              print("✅ results.xlsx 생성 완료")
-          else:
-              print("⚠️ 탐지된 결과가 없어 Excel이 비어 있습니다.")
-          EOF
-
-      - name: Upload Excel
-        if: success()
+      - name: Upload SARIF results
         uses: actions/upload-artifact@v4
         with:
-          name: codesweep-excel
-          path: results.xlsx
+          name: codesweep-sarif
+          path: results.sarif.json
