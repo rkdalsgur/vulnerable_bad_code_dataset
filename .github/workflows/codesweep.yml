@@ -1,9 +1,8 @@
-name: 'HCL AppScan CodeSweep'
+name: 'HCL AppScan CodeSweep FullScan'
 on:
+  workflow_dispatch: # 수동 실행 가능하게 함
   push:
     branches: [main]
-  pull_request:
-    types: [opened, synchronize]
 
 jobs:
   scan:
@@ -13,7 +12,14 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
       - name: Run AppScan CodeSweep
         uses: HCL-TECH-SOFTWARE/appscan-codesweep-action@v2.1
-    env:
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload SARIF
+        uses: actions/upload-artifact@v4
+        with:
+          name: codesweep-results
+          path: results.sarif.json
